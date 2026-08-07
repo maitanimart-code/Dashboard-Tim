@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor Pekerjaan Tim — Harian</title>
+<style>
+  :root{
+    --bg: #F4F5F7;
+    --surface: #FFFFFF;
+    --ink: #191E29;
+    --muted: #6B7280;
+    --line: #E5E7EB;
+    --brand: #0F6B5C;
+    --brand-ink: #0B4F44;
+    --brand-tint: #E4F2EF;
+    --done: #157A4A;
+    --done-tint: #E4F5EC;
+    --progress: #B0700B;
+    --progress-tint: #FBF0DC;
+    --notyet: #5B6472;
+    --notyet-tint: #EAECEF;
+    --overdue: #B3261E;
+    --overdue-tint: #FBE9E7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  #app-root{
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 28px 20px 60px;
+  }
+  .heading-font{ font-family: "Segoe UI", system-ui, -apple-system, sans-serif; letter-spacing:-0.01em; }
+
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  .topbar{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    flex-wrap: wrap; gap: 14px; margin-bottom: 22px;
+  }
+  .topbar h1{ font-size: 22px; margin: 0 0 4px; font-weight: 700; }
+  .topbar .sub{ color: var(--muted); font-size: 13px; }
+  .btn{
+    border:none; cursor:pointer; font-family:inherit; font-weight:600; font-size: 13.5px;
+    padding: 10px 18px; border-radius: 8px; transition: transform .12s ease;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn-brand{ background: var(--brand); color:#fff; box-shadow: 0 2px 10px rgba(15,107,92,.25);}
+  .btn-brand:hover{ background: var(--brand-ink); }
+  .btn-ghost{ background:transparent; color: var(--muted); border:1px solid var(--line); }
+  .btn-ghost:hover{ border-color:#c7cbd1; color:var(--ink); }
+
+  .cards{ display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; margin-bottom:22px; }
+  @media (max-width: 880px){ .cards{ grid-template-columns: repeat(2,1fr);} }
+  .card{ background: var(--surface); border-radius: 12px; padding: 16px 16px 14px; border: 1px solid var(--line); position:relative; overflow:hidden; }
+  .card .num{ font-size: 30px; font-weight: 800; line-height:1; margin-top:6px; }
+  .card .lbl{ font-size: 11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); }
+  .card.total .num{ color: var(--ink); }
+  .card.done .num{ color: var(--done); }
+  .card.progress .num{ color: var(--progress); }
+  .card.notyet .num{ color: var(--notyet); }
+  .card.overdue .num{ color: var(--overdue); }
+  .card .bar{ position:absolute; left:0; top:0; height:3px; width:100%; }
+  .card.total .bar{ background: var(--ink); }
+  .card.done .bar{ background: var(--done); }
+  .card.progress .bar{ background: var(--progress); }
+  .card.notyet .bar{ background: var(--notyet); }
+  .card.overdue .bar{ background: var(--overdue); }
+
+  .layout{ display:grid; grid-template-columns: 1fr 300px; gap: 18px; align-items:start; }
+  @media (max-width: 960px){ .layout{ grid-template-columns: 1fr; } }
+
+  .panel{ background: var(--surface); border:1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel h2{ font-size: 14px; margin: 0 0 12px; font-weight: 700; }
+
+  .filters{ display:flex; gap:8px; margin-bottom: 12px; flex-wrap:wrap; }
+  .filters select, .filters input{
+    font-family: inherit; font-size: 13px; padding: 7px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background:#fff; color: var(--ink);
+  }
+  .filters input[type=text]{ flex: 1; min-width: 160px; }
+
+  table{ width:100%; border-collapse: collapse; font-size: 13px; }
+  thead th{
+    text-align:left; font-size: 10.5px; text-transform:uppercase; letter-spacing:.04em;
+    color: var(--muted); font-weight:700; padding: 6px 8px; border-bottom: 1px solid var(--line);
+  }
+  tbody td{ padding: 9px 8px; border-bottom: 1px solid #F0F1F3; vertical-align: top; }
+  tbody tr:hover{ background: #FAFAFB; }
+  .task-title{ font-weight:600; }
+  .task-meta{ color: var(--muted); font-size: 11.5px; margin-top:2px; }
+  .badge{ display:inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight:700; }
+  .badge.Overdue{ background: var(--overdue-tint); color: var(--overdue); }
+  .prio{ font-size: 11px; font-weight: 700; }
+  .prio.Tinggi{ color: var(--overdue); }
+  .prio.Sedang{ color: var(--progress); }
+  .prio.Rendah{ color: var(--muted); }
+
+  select.status-select{
+    font-family: inherit; font-size: 12px; padding: 4px 6px; border-radius: 6px;
+    border: 1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer;
+  }
+  .progress-cell{ display:flex; align-items:center; gap:6px; min-width: 90px; }
+  .progress-track{ flex:1; height:6px; border-radius:99px; background:#EEF0F2; overflow:hidden; }
+  .progress-fill{ height:100%; background: var(--brand); }
+  .progress-pct{ font-size:11px; color:var(--muted); width: 30px; text-align:right; }
+
+  .icon-btn{ background:none; border:none; cursor:pointer; color: var(--muted); font-size: 15px; padding: 2px 5px; border-radius:6px; }
+  .icon-btn:hover{ background:#F0F1F3; color: var(--ink); }
+
+  .team-row{ display:flex; align-items:center; gap:8px; padding: 8px 0; border-bottom: 1px solid #F0F1F3; }
+  .team-row:last-child{ border-bottom:none; }
+  .avatar{
+    width:28px; height:28px; border-radius:50%; background: var(--brand-tint); color: var(--brand-ink);
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0;
+  }
+  .team-info{ flex:1; min-width:0; }
+  .team-name{ font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .team-bar{ height:5px; border-radius:99px; background:#EEF0F2; margin-top:4px; overflow:hidden; display:flex; }
+  .team-bar span{ height:100%; display:block; }
+  .team-count{ font-size:11px; color:var(--muted); flex-shrink:0; }
+
+  .legend{ display:flex; flex-direction:column; gap:6px; margin-top:14px; }
+  .legend-item{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  .empty{ text-align:center; padding: 30px 10px; color: var(--muted); font-size:13px; }
+
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(20,22,27,.45); display:flex; align-items:center; justify-content:center;
+    z-index:50; padding: 20px;
+  }
+  .modal{ background:#fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 480px; max-height: 88vh; overflow-y:auto; }
+  .modal h3{ margin:0 0 14px; font-size:16px; }
+  .field{ margin-bottom: 12px; }
+  .field label{ display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.03em;}
+  .field input, .field select, .field textarea{
+    width:100%; font-family:inherit; font-size:13.5px; padding: 8px 10px; border-radius:8px;
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+  }
+  .field textarea{ resize: vertical; min-height: 54px; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row .field{ flex:1; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top: 18px; }
+
+  .toast{
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color:#fff; padding: 10px 18px; border-radius: 8px; font-size:13px;
+    z-index: 60; opacity:0; pointer-events:none; transition: opacity .25s ease;
+  }
+  .toast.show{ opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app-root"><div class="empty">Memuat data tugas tim…</div></div>
+<script>
+(function(){
+  "use strict";
+
+  // ================================================================
+  // KONFIGURASI — tempel URL Web App Google Apps Script Anda di sini
+  // (lihat Code.gs untuk cara membuatnya). Contoh:
+  // "https://script.google.com/macros/s/AKfycb.../exec"
+  // ================================================================
+  var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA9JXSiQr4S2hffEtpTz1PvgrpUl27H0QP8dDN_7VvEzvTFBCOXJRE0wEZ8T3SdpsN/exec";
+
+  var STATUS = ["Belum Mulai", "On Progress", "Selesai"];
+  var PRIORITAS = ["Tinggi", "Sedang", "Rendah"];
+  var POLL_INTERVAL_MS = 15000;
+  var isSaving = false;
+
+  var state = { tasks: [], search: "", filterStatus: "Semua", filterPrioritas: "Semua", modalTask: undefined };
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+  function fmtDate(iso){
+    if(!iso) return "-";
+    var d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("id-ID", { day:"2-digit", month:"short", year:"numeric" });
+  }
+  function isOverdue(t){
+    if(t.status === "Selesai") return false;
+    if(!t.target) return false;
+    return t.target < todayISO();
+  }
+  function daysLate(t){
+    if(!isOverdue(t)) return 0;
+    var a = new Date(t.target + "T00:00:00");
+    var b = new Date(todayISO() + "T00:00:00");
+    return Math.round((b - a) / 86400000);
+  }
+  function initials(name){
+    var parts = (name||"").trim().split(/\s+/);
+    return (((parts[0]||"")[0]||"") + ((parts[1]||"")[0]||"")).toUpperCase() || "?";
+  }
+
+  var SAMPLE = [
+    { id: uid(), tanggal: todayISO(), nama: "Andi Pratama", divisi: "Audit Internal",
+      deskripsi: "Menyusun laporan tindak lanjut temuan DMTL Q3", prioritas: "Tinggi",
+      mulai: todayISO(), target: todayISO(), status: "On Progress", progress: 60,
+      catatan: "Menunggu dokumen pendukung dari unit terkait" },
+    { id: uid(), tanggal: todayISO(), nama: "Siti Rahma", divisi: "Kepatuhan",
+      deskripsi: "Verifikasi laporan WBS bulan berjalan", prioritas: "Sedang",
+      mulai: todayISO(), target: todayISO(), status: "Selesai", progress: 100,
+      catatan: "Selesai tepat waktu" },
+    { id: uid(), tanggal: todayISO(), nama: "Budi Santoso", divisi: "Operasional",
+      deskripsi: "Rekonsiliasi data anomali IDEA CaseWare", prioritas: "Tinggi",
+      mulai: todayISO(), target: "2026-08-01", status: "Belum Mulai", progress: 0,
+      catatan: "Terkendala akses server EDM" }
+  ];
+
+  var root = document.getElementById("app-root");
+  var toastTimer = null;
+
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    if(!t) return;
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  function isConfigured(){
+    return !!APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("script.google.com") !== -1;
+  }
+
+  async function loadData(silent){
+    if(!isConfigured()){
+      state.tasks = SAMPLE;
+      render();
+      return;
+    }
+    try{
+      var res = await fetch(APPS_SCRIPT_URL, { method: "GET" });
+      var data = await res.json();
+      state.tasks = (data || []).map(function(t){
+        return Object.assign({}, t, { progress: Number(t.progress) || 0 });
+      });
+    } catch(err){
+      console.error("Gagal memuat data dari Google Sheets:", err);
+      if(!silent) showToast("Gagal memuat data dari Google Sheets");
+    }
+    render();
+  }
+
+  async function callApi(payload){
+    isSaving = true;
+    try{
+      var res = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      await res.json();
+      await loadData(true);
+    } catch(err){
+      console.error(err);
+      showToast("Gagal menyimpan perubahan ke Google Sheets");
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  function addTaskRemote(task){ return callApi({ action: "add", task: task }); }
+  function updateTaskRemote(task){ return callApi({ action: "update", task: task }); }
+  function deleteTaskRemote(id){ return callApi({ action: "delete", id: id }); }
+
+  function getFiltered(){
+    return state.tasks.filter(function(t){
+      var overdue = isOverdue(t);
+      var key = overdue ? "Overdue" : t.status.replace(" ", "");
+      if(state.filterStatus !== "Semua" && key !== state.filterStatus) return false;
+      if(state.filterPrioritas !== "Semua" && t.prioritas !== state.filterPrioritas) return false;
+      if(state.search.trim()){
+        var q = state.search.toLowerCase();
+        var hay = (t.nama + " " + t.deskripsi + " " + (t.divisi||"")).toLowerCase();
+        if(hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function getStats(){
+    var done=0, progress=0, notyet=0, overdue=0;
+    state.tasks.forEach(function(t){
+      if(isOverdue(t)) overdue++;
+      if(t.status === "Selesai") done++;
+      else if(t.status === "On Progress") progress++;
+      else notyet++;
+    });
+    return { total: state.tasks.length, done: done, progress: progress, notyet: notyet, overdue: overdue };
+  }
+
+  function getTeamStats(){
+    var map = {};
+    state.tasks.forEach(function(t){
+      if(!map[t.nama]) map[t.nama] = { nama: t.nama, done:0, progress:0, notyet:0, total:0 };
+      map[t.nama].total++;
+      if(t.status === "Selesai") map[t.nama].done++;
+      else if(t.status === "On Progress") map[t.nama].progress++;
+      else map[t.nama].notyet++;
+    });
+    return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return b.total - a.total; });
+  }
+
+  function render(){
+    var stats = getStats();
+    var filtered = getFiltered();
+    var teamStats = getTeamStats();
+    var todayLabel = new Date().toLocaleDateString("id-ID", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
+
+    var html = '';
+    html += '<div class="wrap">';
+
+    html += '<div class="topbar">';
+    html += '  <div><h1 class="heading-font">Monitor Pekerjaan Tim — Harian</h1>';
+    html += '  <div class="sub">' + esc(todayLabel) + ' &middot; data tersimpan otomatis &amp; dapat diakses bersama tim</div></div>';
+    html += '  <button class="btn btn-brand" id="btn-add">+ Tambah Tugas</button>';
+    html += '</div>';
+
+    html += '<div class="cards">';
+    html += cardHtml('total', 'Total Tugas', stats.total);
+    html += cardHtml('done', 'Selesai', stats.done);
+    html += cardHtml('progress', 'On Progress', stats.progress);
+    html += cardHtml('notyet', 'Belum Mulai', stats.notyet);
+    html += cardHtml('overdue', 'Overdue', stats.overdue);
+    html += '</div>';
+
+    html += '<div class="layout">';
+
+    // Left: table panel
+    html += '<div class="panel">';
+    html += '<h2 class="heading-font">Daftar Tugas (' + filtered.length + ')</h2>';
+    html += '<div class="filters">';
+    html += '<input type="text" id="f-search" placeholder="Cari nama, divisi, atau deskripsi…" value="' + esc(state.search) + '"/>';
+    html += '<select id="f-status">';
+    [["Semua","Semua Status"],["BelumMulai","Belum Mulai"],["OnProgress","On Progress"],["Selesai","Selesai"],["Overdue","Overdue"]].forEach(function(o){
+      html += '<option value="' + o[0] + '"' + (state.filterStatus===o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+    });
+    html += '</select>';
+    html += '<select id="f-prioritas"><option value="Semua"' + (state.filterPrioritas==="Semua"?" selected":"") + '>Semua Prioritas</option>';
+    PRIORITAS.forEach(function(p){ html += '<option value="'+p+'"' + (state.filterPrioritas===p?" selected":"") + '>'+p+'</option>'; });
+    html += '</select>';
+    html += '</div>';
+
+    if(filtered.length === 0){
+      html += '<div class="empty">Tidak ada tugas yang cocok dengan filter ini.</div>';
+    } else {
+      html += '<div style="overflow-x:auto"><table><thead><tr>';
+      html += '<th style="min-width:180px">Pekerjaan</th><th>Prioritas</th><th>Target</th><th>Status</th><th style="min-width:110px">Progress</th><th></th>';
+      html += '</tr></thead><tbody>';
+      filtered.forEach(function(t){
+        var overdue = isOverdue(t);
+        html += '<tr>';
+        html += '<td><div class="task-title">' + esc(t.deskripsi) + '</div>';
+        html += '<div class="task-meta">' + esc(t.nama) + (t.divisi ? ' &middot; ' + esc(t.divisi) : '') + '</div>';
+        if(overdue) html += '<div class="task-meta" style="color:var(--overdue);font-weight:700">Terlambat ' + daysLate(t) + ' hari</div>';
+        html += '</td>';
+        html += '<td><span class="prio ' + t.prioritas + '">' + t.prioritas + '</span></td>';
+        html += '<td>' + fmtDate(t.target) + '</td>';
+        html += '<td><select class="status-select" data-id="' + t.id + '" data-action="status">';
+        STATUS.forEach(function(s){ html += '<option value="'+s+'"' + (t.status===s?" selected":"") + '>'+s+'</option>'; });
+        html += '</select>';
+        if(overdue) html += '<div style="margin-top:4px"><span class="badge Overdue">Overdue</span></div>';
+        html += '</td>';
+        html += '<td><div class="progress-cell"><div class="progress-track"><div class="progress-fill" style="width:' + t.progress + '%"></div></div>';
+        html += '<div class="progress-pct">' + t.progress + '%</div></div></td>';
+        html += '<td><button class="icon-btn" title="Edit" data-action="edit" data-id="' + t.id + '">&#9998;</button>';
+        html += '<button class="icon-btn" title="Hapus" data-action="delete" data-id="' + t.id + '">&#10005;</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>'; // end left panel
+
+    // Right column
+    html += '<div>';
+    html += '<div class="panel" style="margin-bottom:14px">';
+    html += '<h2 class="heading-font">Rekap per Anggota</h2>';
+    if(teamStats.length === 0){
+      html += '<div class="empty">Belum ada data.</div>';
+    } else {
+      teamStats.forEach(function(m){
+        html += '<div class="team-row"><div class="avatar">' + initials(m.nama) + '</div>';
+        html += '<div class="team-info"><div class="team-name">' + esc(m.nama) + '</div>';
+        html += '<div class="team-bar">';
+        if(m.done>0) html += '<span style="width:' + (m.done/m.total*100) + '%;background:var(--done)"></span>';
+        if(m.progress>0) html += '<span style="width:' + (m.progress/m.total*100) + '%;background:var(--progress)"></span>';
+        if(m.notyet>0) html += '<span style="width:' + (m.notyet/m.total*100) + '%;background:var(--notyet)"></span>';
+        html += '</div></div>';
+        html += '<div class="team-count">' + m.done + '/' + m.total + '</div></div>';
+      });
+    }
+    html += '</div>';
+
+    html += '<div class="panel"><h2 class="heading-font">Keterangan</h2><div class="legend">';
+    html += '<div class="legend-item"><span class="legend-dot" style="background:var(--done)"></span> Selesai</div>';
+    html += '<div class="legend-item"><span class="legend-dot" style="background:var(--progress)"></span> On Progress</div>';
+    html += '<div class="legend-item"><span class="legend-dot" style="background:var(--notyet)"></span> Belum Mulai</div>';
+    html += '<div class="legend-item"><span class="legend-dot" style="background:var(--overdue)"></span> Overdue (lewat target)</div>';
+    html += '</div></div>';
+    html += '</div>'; // end right column
+
+    html += '</div>'; // end layout
+
+    if(state.modalTask !== undefined) html += modalHtml(state.modalTask);
+
+    html += '</div>'; // end wrap
+    html += '<div class="toast" id="toast"></div>';
+
+    root.innerHTML = html;
+    attachEvents();
+  }
+
+  function cardHtml(cls, label, num){
+    return '<div class="card ' + cls + '"><div class="bar"></div><div class="lbl">' + label + '</div><div class="num">' + num + '</div></div>';
+  }
+
+  function modalHtml(task){
+    var t = task || { nama:"", divisi:"", deskripsi:"", prioritas:"Sedang", mulai: todayISO(), target: todayISO(), status:"Belum Mulai", progress:0, catatan:"" };
+    var isEdit = !!task;
+    var html = '<div class="modal-bg" id="modal-bg"><div class="modal">';
+    html += '<h3 class="heading-font">' + (isEdit ? "Edit Tugas" : "Tambah Tugas Baru") + '</h3>';
+    html += '<form id="task-form">';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Nama Anggota</label><input id="m-nama" value="' + esc(t.nama) + '" placeholder="cth. Budi Santoso" required></div>';
+    html += '<div class="field"><label>Divisi / Unit</label><input id="m-divisi" value="' + esc(t.divisi) + '" placeholder="cth. Divisi Operasional"></div>';
+    html += '</div>';
+    html += '<div class="field"><label>Deskripsi Pekerjaan</label><textarea id="m-deskripsi" placeholder="Apa yang sedang dikerjakan?" required>' + esc(t.deskripsi) + '</textarea></div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Prioritas</label><select id="m-prioritas">';
+    PRIORITAS.forEach(function(p){ html += '<option value="'+p+'"' + (t.prioritas===p?" selected":"") + '>'+p+'</option>'; });
+    html += '</select></div>';
+    html += '<div class="field"><label>Status</label><select id="m-status">';
+    STATUS.forEach(function(s){ html += '<option value="'+s+'"' + (t.status===s?" selected":"") + '>'+s+'</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Tanggal Mulai</label><input type="date" id="m-mulai" value="' + esc(t.mulai) + '"></div>';
+    html += '<div class="field"><label>Target Selesai</label><input type="date" id="m-target" value="' + esc(t.target) + '"></div>';
+    html += '</div>';
+    html += '<div class="field"><label>Progress (%)</label><input type="number" min="0" max="100" id="m-progress" value="' + t.progress + '"></div>';
+    html += '<div class="field"><label>Catatan</label><textarea id="m-catatan" placeholder="Kendala, keterangan tambahan, dsb.">' + esc(t.catatan) + '</textarea></div>';
+    html += '<div class="modal-actions">';
+    html += '<button type="button" class="btn btn-ghost" id="btn-cancel">Batal</button>';
+    html += '<button type="submit" class="btn btn-brand">' + (isEdit ? "Simpan Perubahan" : "Tambah Tugas") + '</button>';
+    html += '</div></form></div></div>';
+    return html;
+  }
+
+  function attachEvents(){
+    var btnAdd = document.getElementById("btn-add");
+    if(btnAdd) btnAdd.onclick = function(){ state.modalTask = null; render(); };
+
+    var fSearch = document.getElementById("f-search");
+    if(fSearch){
+      fSearch.oninput = function(e){ state.search = e.target.value; renderKeepFocus("f-search"); };
+    }
+    var fStatus = document.getElementById("f-status");
+    if(fStatus) fStatus.onchange = function(e){ state.filterStatus = e.target.value; render(); };
+    var fPrioritas = document.getElementById("f-prioritas");
+    if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; render(); };
+
+    document.querySelectorAll('[data-action="status"]').forEach(function(sel){
+      sel.onchange = function(e){
+        var id = e.target.getAttribute("data-id");
+        var task = state.tasks.find(function(t){ return t.id === id; });
+        if(!task) return;
+        var updated = Object.assign({}, task, { status: e.target.value });
+        state.tasks = state.tasks.map(function(t){ return t.id === id ? updated : t; });
+        render();
+        if(isConfigured()) updateTaskRemote(updated);
+      };
+    });
+    document.querySelectorAll('[data-action="edit"]').forEach(function(btn){
+      btn.onclick = function(e){
+        var id = e.target.getAttribute("data-id");
+        state.modalTask = state.tasks.find(function(t){ return t.id === id; });
+        render();
+      };
+    });
+    document.querySelectorAll('[data-action="delete"]').forEach(function(btn){
+      btn.onclick = function(e){
+        var id = e.target.getAttribute("data-id");
+        if(!confirm("Hapus tugas ini?")) return;
+        state.tasks = state.tasks.filter(function(t){ return t.id !== id; });
+        render();
+        showToast("Tugas dihapus");
+        if(isConfigured()) deleteTaskRemote(id);
+      };
+    });
+
+    var modalBg = document.getElementById("modal-bg");
+    if(modalBg){
+      modalBg.onclick = function(e){ if(e.target === modalBg){ state.modalTask = undefined; render(); } };
+    }
+    var btnCancel = document.getElementById("btn-cancel");
+    if(btnCancel) btnCancel.onclick = function(){ state.modalTask = undefined; render(); };
+
+    var form = document.getElementById("task-form");
+    if(form){
+      form.onsubmit = function(e){
+        e.preventDefault();
+        var nama = document.getElementById("m-nama").value.trim();
+        var deskripsi = document.getElementById("m-deskripsi").value.trim();
+        if(!nama || !deskripsi) return;
+        var progressVal = Math.max(0, Math.min(100, Number(document.getElementById("m-progress").value) || 0));
+        var current = state.modalTask;
+        var task = {
+          id: current ? current.id : uid(),
+          tanggal: current ? current.tanggal : todayISO(),
+          nama: nama,
+          divisi: document.getElementById("m-divisi").value.trim(),
+          deskripsi: deskripsi,
+          prioritas: document.getElementById("m-prioritas").value,
+          status: document.getElementById("m-status").value,
+          mulai: document.getElementById("m-mulai").value,
+          target: document.getElementById("m-target").value,
+          progress: progressVal,
+          catatan: document.getElementById("m-catatan").value.trim()
+        };
+        var exists = current && state.tasks.some(function(t){ return t.id === task.id; });
+        if(exists){
+          state.tasks = state.tasks.map(function(t){ return t.id === task.id ? task : t; });
+        } else {
+          state.tasks = [task].concat(state.tasks);
+        }
+        state.modalTask = undefined;
+        render();
+        showToast(exists ? "Tugas diperbarui" : "Tugas ditambahkan");
+        if(isConfigured()){
+          if(exists) updateTaskRemote(task); else addTaskRemote(task);
+        }
+      };
+    }
+  }
+
+  function renderKeepFocus(id){
+    render();
+    var el = document.getElementById(id);
+    if(el){ el.focus(); var v = el.value; el.value = ""; el.value = v; }
+  }
+
+  loadData();
+  // Refresh berkala agar perubahan dari anggota tim lain ikut terlihat,
+  // tapi dijeda saat form tambah/edit sedang terbuka supaya tidak mengganggu.
+  setInterval(function(){
+    if(state.modalTask === undefined && !isSaving) loadData(true);
+  }, POLL_INTERVAL_MS);
+})();
+</script>
+</body>
+</html>
