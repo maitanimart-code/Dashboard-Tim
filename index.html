@@ -151,6 +151,33 @@
     z-index: 60; opacity:0; pointer-events:none; transition: opacity .25s ease;
   }
   .toast.show{ opacity: 1; }
+  .table-wrapper{overflow-x:auto;}
+  .pagination{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:15px;
+    padding-top:10px;
+    border-top:1px solid #E5E7EB;
+}
+
+.pagination button{
+    padding:7px 14px;
+    border:1px solid #D1D5DB;
+    background:#fff;
+    border-radius:8px;
+    cursor:pointer;
+    font-family:inherit;
+}
+
+.pagination button:hover{
+    background:#F5F5F5;
+}
+
+.pagination button:disabled{
+    opacity:.5;
+    cursor:not-allowed;
+}
 </style>
 </head>
 <body>
@@ -173,7 +200,7 @@
   var POLL_INTERVAL_MS = 15000;
   var isSaving = false;
 
-  var state = { tasks: [], search: "", filterStatus: "Semua", filterPrioritas: "Semua", modalTask: undefined };
+  var state = {tasks: [],search: "",filterStatus: "Semua",filterPrioritas: "Semua",modalTask: undefined,currentPage: 1,pageSize: 5};
 
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -332,12 +359,21 @@
   function render(){
     var stats = getStats();
     var filtered = getFiltered();
+    // PAGINATION
+var totalPage = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+if(state.currentPage > totalPage){
+    state.currentPage = totalPage;
+}
+var start = (state.currentPage - 1) * state.pageSize;
+var end = start + state.pageSize;
+
+var pageData = filtered.slice(start,end);
     var teamStats = getTeamStats();
     var todayLabel = new Date().toLocaleDateString("id-ID", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
 
     var html = '';
     html += '<div class="wrap">';
-
+  
     html += '<div class="topbar">';
     html += '  <div><h1 class="heading-font">Monitor Pekerjaan — Harian</h1>';
     html += '  <div class="sub">' + esc(todayLabel) + ' &middot; -- &amp; --</div></div>';
@@ -373,28 +409,9 @@
       html += '<div class="empty">Tidak ada tugas yang cocok dengan filter ini.</div>';
     } else {
       html += `<div class="table-wrapper"><table><thead><tr>`;
-      .table-wrapper{
-    max-height: 360px;      /* sekitar 5 baris */
-    overflow-y: auto;
-    overflow-x: auto;
-    border:1px solid #E5E7EB;
-    border-radius:8px;
-}
-
-.table-wrapper table{
-    width:100%;
-    border-collapse:collapse;
-}
-
-.table-wrapper thead th{
-    position:sticky;
-    top:0;
-    background:#FFFFFF;
-    z-index:5;
-}
       html += '<th style="min-width:180px">Pekerjaan</th><th>Prioritas</th><th>Target</th><th>Status</th><th style="min-width:110px">Progress</th><th></th>';
       html += '</tr></thead><tbody>';
-      filtered.forEach(function(t){
+      pageData.forEach(function(t){
         var overdue = isOverdue(t);
         html += '<tr>';
         html += '<td><div class="task-title">' + esc(t.deskripsi) + '</div>';
@@ -415,6 +432,26 @@
         html += '</tr>';
       });
       html += '</tbody></table></div>';
+
+html += `
+<div class="pagination">
+
+<button id="btn-prev"
+${state.currentPage==1?'disabled':''}>
+◀ Sebelumnya
+</button>
+
+<span>
+Halaman ${state.currentPage} dari ${totalPage}
+</span>
+
+<button id="btn-next"
+${state.currentPage==totalPage?'disabled':''}>
+Berikutnya ▶
+</button>
+
+</div>
+`;
     }
     html += '</div>'; // end left panel
 
@@ -455,6 +492,51 @@
 
     root.innerHTML = html;
     attachEvents();
+// ==========================
+// PAGINATION
+// ==========================
+
+var btnPrev=document.getElementById("btn-prev");
+
+if(btnPrev){
+
+    btnPrev.onclick=function(){
+
+        if(state.currentPage>1){
+
+            state.currentPage--;
+
+            render();
+
+        }
+
+    }
+
+}
+
+var btnNext=document.getElementById("btn-next");
+
+if(btnNext){
+
+    btnNext.onclick=function(){
+
+        var totalPage=Math.max(
+            1,
+            Math.ceil(getFiltered().length/state.pageSize)
+        );
+
+        if(state.currentPage<totalPage){
+
+            state.currentPage++;
+
+            render();
+
+        }
+
+    }
+
+}
+    
   }
 
   function cardHtml(cls, label, num){
@@ -499,12 +581,12 @@
 
     var fSearch = document.getElementById("f-search");
     if(fSearch){
-      fSearch.oninput = function(e){ state.search = e.target.value; renderKeepFocus("f-search"); };
+      fSearch.oninput = function(e){ state.search = e.target.value; state.currentPage = 1; renderKeepFocus("f-search"); };
     }
     var fStatus = document.getElementById("f-status");
-    if(fStatus) fStatus.onchange = function(e){ state.filterStatus = e.target.value; render(); };
+    if(fStatus) fStatus.onchange = function(e){ state.filterStatus = e.target.value;state.currentPage = 1; render(); };
     var fPrioritas = document.getElementById("f-prioritas");
-    if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; render(); };
+    if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; state.currentPage = 1; render(); };
 
     document.querySelectorAll('[data-action="status"]').forEach(function(sel){
       sel.onchange = function(e){
