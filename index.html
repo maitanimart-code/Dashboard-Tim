@@ -164,7 +164,10 @@
   // (lihat Code.gs untuk cara membuatnya). Contoh:
   // "https://script.google.com/macros/s/AKfycb.../exec"
   // ================================================================
-  var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA9JXSiQr4S2hffEtpTz1PvgrpUl27H0QP8dDN_7VvEzvTFBCOXJRE0wEZ8T3SdpsN/exec";
+  var APPS_SCRIPT_URL = "";
+
+  // Token rahasia — HARUS SAMA PERSIS dengan SECRET_TOKEN di Apps Script (Code.gs).
+  var TOKEN = "vsMit3_O1zw7p2h5woMWPjamIzGbYbfj";
 
   var STATUS = ["Belum Mulai", "On Progress", "Selesai"];
   var PRIORITAS = ["Tinggi", "Sedang", "Rendah"];
@@ -239,7 +242,7 @@
       return;
     }
     try{
-      var res = await fetch(APPS_SCRIPT_URL, { method: "GET" });
+      var res = await fetch(APPS_SCRIPT_URL + "?token=" + encodeURIComponent(TOKEN), { method: "GET" });
       var data = await res.json();
       state.tasks = (data || []).map(function(t){
         return Object.assign({}, t, { progress: Number(t.progress) || 0 });
@@ -257,7 +260,7 @@
       var res = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(Object.assign({ token: TOKEN }, payload))
       });
       await res.json();
       await loadData(true);
