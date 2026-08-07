@@ -20,7 +20,7 @@
     --progress-tint: #FBF0DC;
     --notyet: #5B6472;
     --notyet-tint: #EAECEF;
-    --overdue: #B3261E;
+    --due: #B3261E;
     --overdue-tint: #FBE9E7;
   }
   *{box-sizing:border-box;}
@@ -372,7 +372,26 @@
     if(filtered.length === 0){
       html += '<div class="empty">Tidak ada tugas yang cocok dengan filter ini.</div>';
     } else {
-      html += '<div style="overflow-x:auto"><table><thead><tr>';
+      html += `<div class="table-wrapper"><table><thead><tr>`;
+      .table-wrapper{
+    max-height: 360px;      /* sekitar 5 baris */
+    overflow-y: auto;
+    overflow-x: auto;
+    border:1px solid #E5E7EB;
+    border-radius:8px;
+}
+
+.table-wrapper table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+.table-wrapper thead th{
+    position:sticky;
+    top:0;
+    background:#FFFFFF;
+    z-index:5;
+}
       html += '<th style="min-width:180px">Pekerjaan</th><th>Prioritas</th><th>Target</th><th>Status</th><th style="min-width:110px">Progress</th><th></th>';
       html += '</tr></thead><tbody>';
       filtered.forEach(function(t){
