@@ -93,6 +93,9 @@
   .task-meta{ color: var(--muted); font-size: 11.5px; margin-top:2px; }
   .badge{ display:inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight:700; }
   .badge.Overdue{ background: var(--overdue-tint); color: var(--overdue); }
+  .badge.Selesai{ background: var(--done-tint); color: var(--done); }
+  .badge.OnProgress{ background: var(--progress-tint); color: var(--progress); }
+  .badge.BelumMulai{ background: var(--notyet-tint); color: var(--notyet); }
   .prio{ font-size: 11px; font-weight: 700; }
   .prio.Tinggi{ color: var(--overdue); }
   .prio.Sedang{ color: var(--progress); }
@@ -191,7 +194,9 @@
   }
   function fmtDate(iso){
     if(!iso) return "-";
-    var d = new Date(iso + "T00:00:00");
+    var datePart = String(iso).slice(0, 10);
+    var d = new Date(datePart + "T00:00:00");
+    if(isNaN(d.getTime())) return "-";
     return d.toLocaleDateString("id-ID", { day:"2-digit", month:"short", year:"numeric" });
   }
   function isOverdue(t){
@@ -368,9 +373,7 @@
         html += '</td>';
         html += '<td><span class="prio ' + t.prioritas + '">' + t.prioritas + '</span></td>';
         html += '<td>' + fmtDate(t.target) + '</td>';
-        html += '<td><select class="status-select" data-id="' + t.id + '" data-action="status">';
-        STATUS.forEach(function(s){ html += '<option value="'+s+'"' + (t.status===s?" selected":"") + '>'+s+'</option>'; });
-        html += '</select>';
+        html += '<td><span class="badge ' + t.status.replace(" ","") + '">' + t.status + '</span>';
         if(overdue) html += '<div style="margin-top:4px"><span class="badge Overdue">Overdue</span></div>';
         html += '</td>';
         html += '<td><div class="progress-cell"><div class="progress-track"><div class="progress-fill" style="width:' + t.progress + '%"></div></div>';
@@ -454,8 +457,8 @@
     html += '</select></div>';
     html += '</div>';
     html += '<div class="field-row">';
-    html += '<div class="field"><label>Tanggal Mulai</label><input type="date" id="m-mulai" value="' + esc(t.mulai) + '"></div>';
-    html += '<div class="field"><label>Target Selesai</label><input type="date" id="m-target" value="' + esc(t.target) + '"></div>';
+    html += '<div class="field"><label>Tanggal Mulai</label><input type="date" id="m-mulai" value="' + esc(t.mulai) + '" required></div>';
+    html += '<div class="field"><label>Target Selesai</label><input type="date" id="m-target" value="' + esc(t.target) + '" required></div>';
     html += '</div>';
     html += '<div class="field"><label>Progress (%)</label><input type="number" min="0" max="100" id="m-progress" value="' + t.progress + '"></div>';
     html += '<div class="field"><label>Catatan</label><textarea id="m-catatan" placeholder="Kendala, keterangan tambahan, dsb.">' + esc(t.catatan) + '</textarea></div>';
@@ -484,17 +487,6 @@
     var fPrioritas = document.getElementById("f-prioritas");
     if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; state.page = 1; render(); };
 
-    document.querySelectorAll('[data-action="status"]').forEach(function(sel){
-      sel.onchange = function(e){
-        var id = e.target.getAttribute("data-id");
-        var task = state.tasks.find(function(t){ return t.id === id; });
-        if(!task) return;
-        var updated = Object.assign({}, task, { status: e.target.value });
-        state.tasks = state.tasks.map(function(t){ return t.id === id ? updated : t; });
-        render();
-        if(isConfigured()) updateTaskRemote(updated);
-      };
-    });
     document.querySelectorAll('[data-action="edit"]').forEach(function(btn){
       btn.onclick = function(e){
         var id = e.target.getAttribute("data-id");
@@ -526,7 +518,18 @@
         e.preventDefault();
         var nama = document.getElementById("m-nama").value.trim();
         var deskripsi = document.getElementById("m-deskripsi").value.trim();
+        var mulaiVal = document.getElementById("m-mulai").value;
+        var targetVal = document.getElementById("m-target").value;
+        var dateRe = /^\d{4}-\d{2}-\d{2}$/;
         if(!nama || !deskripsi) return;
+        if(!mulaiVal || !dateRe.test(mulaiVal)){
+          showToast("Tanggal Mulai belum diisi / tidak valid");
+          return;
+        }
+        if(!targetVal || !dateRe.test(targetVal)){
+          showToast("Target Selesai belum diisi / tidak valid");
+          return;
+        }
         var progressVal = Math.max(0, Math.min(100, Number(document.getElementById("m-progress").value) || 0));
         var current = state.modalTask;
         var task = {
@@ -537,8 +540,8 @@
           deskripsi: deskripsi,
           prioritas: document.getElementById("m-prioritas").value,
           status: document.getElementById("m-status").value,
-          mulai: document.getElementById("m-mulai").value,
-          target: document.getElementById("m-target").value,
+          mulai: mulaiVal,
+          target: targetVal,
           progress: progressVal,
           catatan: document.getElementById("m-catatan").value.trim()
         };
