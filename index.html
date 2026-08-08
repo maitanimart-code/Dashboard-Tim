@@ -20,7 +20,7 @@
     --progress-tint: #FBF0DC;
     --notyet: #5B6472;
     --notyet-tint: #EAECEF;
-    --due: #B3261E;
+    --overdue: #B3261E;
     --overdue-tint: #FBE9E7;
   }
   *{box-sizing:border-box;}
@@ -128,6 +128,11 @@
 
   .empty{ text-align:center; padding: 30px 10px; color: var(--muted); font-size:13px; }
 
+  .pagination{ display:flex; align-items:center; justify-content:center; gap:14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .pagination .btn-sm{ padding: 6px 12px; font-size: 12.5px; }
+  .pagination .btn-sm:disabled{ opacity:.4; cursor:default; }
+  .pg-info{ font-size: 12.5px; color: var(--muted); font-weight:600; }
+
   .modal-bg{
     position:fixed; inset:0; background:rgba(20,22,27,.45); display:flex; align-items:center; justify-content:center;
     z-index:50; padding: 20px;
@@ -151,33 +156,6 @@
     z-index: 60; opacity:0; pointer-events:none; transition: opacity .25s ease;
   }
   .toast.show{ opacity: 1; }
-  .table-wrapper{overflow-x:auto;}
-  .pagination{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:15px;
-    padding-top:10px;
-    border-top:1px solid #E5E7EB;
-}
-
-.pagination button{
-    padding:7px 14px;
-    border:1px solid #D1D5DB;
-    background:#fff;
-    border-radius:8px;
-    cursor:pointer;
-    font-family:inherit;
-}
-
-.pagination button:hover{
-    background:#F5F5F5;
-}
-
-.pagination button:disabled{
-    opacity:.5;
-    cursor:not-allowed;
-}
 </style>
 </head>
 <body>
@@ -191,8 +169,9 @@
   // (lihat Code.gs untuk cara membuatnya). Contoh:
   // "https://script.google.com/macros/s/AKfycb.../exec"
   // ================================================================
-  var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA9JXSiQr4S2hffEtpTz1PvgrpUl27H0QP8dDN_7VvEzvTFBCOXJRE0wEZ8T3SdpsN/exec";
+  var APPS_SCRIPT_URL = "";
 
+  // Token rahasia — HARUS SAMA PERSIS dengan SECRET_TOKEN di Apps Script (Code.gs).
   var TOKEN = "vsMit3_O1zw7p2h5woMWPjamIzGbYbfj";
 
   var STATUS = ["Belum Mulai", "On Progress", "Selesai"];
@@ -200,7 +179,8 @@
   var POLL_INTERVAL_MS = 15000;
   var isSaving = false;
 
-  var state = {tasks: [],search: "",filterStatus: "Semua",filterPrioritas: "Semua",modalTask: undefined,currentPage: 1,pageSize: 5};
+  var state = { tasks: [], search: "", filterStatus: "Semua", filterPrioritas: "Semua", modalTask: undefined, page: 1 };
+  var PAGE_SIZE = 5;
 
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -209,26 +189,10 @@
       return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
     });
   }
-  function fmtDate(value){
-    if(!value) return "-";
-    let d;
-    if (typeof value === "string") {
-        // yyyy-MM-dd
-        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            d = new Date(value + "T00:00:00");
-        } else {
-            d = new Date(value);
-        }
-    } else {
-        d = new Date(value);
-    }
-    if (isNaN(d.getTime()))
-        return "-";
-    return d.toLocaleDateString("id-ID",{
-        day:"2-digit",
-        month:"short",
-        year:"numeric"
-    });
+  function fmtDate(iso){
+    if(!iso) return "-";
+    var d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("id-ID", { day:"2-digit", month:"short", year:"numeric" });
   }
   function isOverdue(t){
     if(t.status === "Selesai") return false;
@@ -246,20 +210,7 @@
     return (((parts[0]||"")[0]||"") + ((parts[1]||"")[0]||"")).toUpperCase() || "?";
   }
 
-  //var SAMPLE = [
-  //  { id: uid(), tanggal: todayISO(), nama: "Andi Pratama", divisi: "Audit Internal",
-  //    deskripsi: "Menyusun laporan tindak lanjut temuan DMTL Q3", prioritas: "Tinggi",
-  //    mulai: todayISO(), target: todayISO(), status: "On Progress", progress: 60,
-  //    catatan: "Menunggu dokumen pendukung dari unit terkait" },
-  //  { id: uid(), tanggal: todayISO(), nama: "Siti Rahma", divisi: "Kepatuhan",
-  //    deskripsi: "Verifikasi laporan WBS bulan berjalan", prioritas: "Sedang",
-  //    mulai: todayISO(), target: todayISO(), status: "Selesai", progress: 100,
-  //    catatan: "Selesai tepat waktu" },
- //   { id: uid(), tanggal: todayISO(), nama: "Budi Santoso", divisi: "Operasional",
-  //    deskripsi: "Rekonsiliasi data anomali IDEA CaseWare", prioritas: "Tinggi",
-  //    mulai: todayISO(), target: "2026-08-01", status: "Belum Mulai", progress: 0,
-  //    catatan: "Terkendala akses server EDM" }
-//  ];
+  var SAMPLE = [];
 
   var root = document.getElementById("app-root");
   var toastTimer = null;
@@ -359,24 +310,15 @@
   function render(){
     var stats = getStats();
     var filtered = getFiltered();
-    // PAGINATION
-var totalPage = Math.max(1, Math.ceil(filtered.length / state.pageSize));
-if(state.currentPage > totalPage){
-    state.currentPage = totalPage;
-}
-var start = (state.currentPage - 1) * state.pageSize;
-var end = start + state.pageSize;
-
-var pageData = filtered.slice(start,end);
     var teamStats = getTeamStats();
     var todayLabel = new Date().toLocaleDateString("id-ID", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
 
     var html = '';
     html += '<div class="wrap">';
-  
+
     html += '<div class="topbar">';
-    html += '  <div><h1 class="heading-font">Monitor Pekerjaan — Harian</h1>';
-    html += '  <div class="sub">' + esc(todayLabel) + ' &middot; -- &amp; --</div></div>';
+    html += '  <div><h1 class="heading-font">Monitor Pekerjaan Tim — Harian</h1>';
+    html += '  <div class="sub">' + esc(todayLabel) + '</div></div>';
     html += '  <button class="btn btn-brand" id="btn-add">+ Tambah Tugas</button>';
     html += '</div>';
 
@@ -408,10 +350,16 @@ var pageData = filtered.slice(start,end);
     if(filtered.length === 0){
       html += '<div class="empty">Tidak ada tugas yang cocok dengan filter ini.</div>';
     } else {
-      html += `<div class="table-wrapper"><table><thead><tr>`;
+      var totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if(state.page > totalPages) state.page = totalPages;
+      if(state.page < 1) state.page = 1;
+      var startIdx = (state.page - 1) * PAGE_SIZE;
+      var pageItems = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+
+      html += '<div style="overflow-x:auto"><table><thead><tr>';
       html += '<th style="min-width:180px">Pekerjaan</th><th>Prioritas</th><th>Target</th><th>Status</th><th style="min-width:110px">Progress</th><th></th>';
       html += '</tr></thead><tbody>';
-      pageData.forEach(function(t){
+      pageItems.forEach(function(t){
         var overdue = isOverdue(t);
         html += '<tr>';
         html += '<td><div class="task-title">' + esc(t.deskripsi) + '</div>';
@@ -433,25 +381,13 @@ var pageData = filtered.slice(start,end);
       });
       html += '</tbody></table></div>';
 
-html += `
-<div class="pagination">
-
-<button id="btn-prev"
-${state.currentPage==1?'disabled':''}>
-◀ Sebelumnya
-</button>
-
-<span>
-Halaman ${state.currentPage} dari ${totalPage}
-</span>
-
-<button id="btn-next"
-${state.currentPage==totalPage?'disabled':''}>
-Berikutnya ▶
-</button>
-
-</div>
-`;
+      if(totalPages > 1){
+        html += '<div class="pagination">';
+        html += '<button class="btn btn-ghost btn-sm" id="pg-prev" ' + (state.page<=1?"disabled":"") + '>&larr; Sebelumnya</button>';
+        html += '<span class="pg-info">Halaman ' + state.page + ' dari ' + totalPages + '</span>';
+        html += '<button class="btn btn-ghost btn-sm" id="pg-next" ' + (state.page>=totalPages?"disabled":"") + '>Selanjutnya &rarr;</button>';
+        html += '</div>';
+      }
     }
     html += '</div>'; // end left panel
 
@@ -492,51 +428,6 @@ Berikutnya ▶
 
     root.innerHTML = html;
     attachEvents();
-// ==========================
-// PAGINATION
-// ==========================
-
-var btnPrev=document.getElementById("btn-prev");
-
-if(btnPrev){
-
-    btnPrev.onclick=function(){
-
-        if(state.currentPage>1){
-
-            state.currentPage--;
-
-            render();
-
-        }
-
-    }
-
-}
-
-var btnNext=document.getElementById("btn-next");
-
-if(btnNext){
-
-    btnNext.onclick=function(){
-
-        var totalPage=Math.max(
-            1,
-            Math.ceil(getFiltered().length/state.pageSize)
-        );
-
-        if(state.currentPage<totalPage){
-
-            state.currentPage++;
-
-            render();
-
-        }
-
-    }
-
-}
-    
   }
 
   function cardHtml(cls, label, num){
@@ -579,14 +470,19 @@ if(btnNext){
     var btnAdd = document.getElementById("btn-add");
     if(btnAdd) btnAdd.onclick = function(){ state.modalTask = null; render(); };
 
+    var pgPrev = document.getElementById("pg-prev");
+    if(pgPrev) pgPrev.onclick = function(){ state.page -= 1; render(); };
+    var pgNext = document.getElementById("pg-next");
+    if(pgNext) pgNext.onclick = function(){ state.page += 1; render(); };
+
     var fSearch = document.getElementById("f-search");
     if(fSearch){
-      fSearch.oninput = function(e){ state.search = e.target.value; state.currentPage = 1; renderKeepFocus("f-search"); };
+      fSearch.oninput = function(e){ state.search = e.target.value; state.page = 1; renderKeepFocus("f-search"); };
     }
     var fStatus = document.getElementById("f-status");
-    if(fStatus) fStatus.onchange = function(e){ state.filterStatus = e.target.value;state.currentPage = 1; render(); };
+    if(fStatus) fStatus.onchange = function(e){ state.filterStatus = e.target.value; state.page = 1; render(); };
     var fPrioritas = document.getElementById("f-prioritas");
-    if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; state.currentPage = 1; render(); };
+    if(fPrioritas) fPrioritas.onchange = function(e){ state.filterPrioritas = e.target.value; state.page = 1; render(); };
 
     document.querySelectorAll('[data-action="status"]').forEach(function(sel){
       sel.onchange = function(e){
